@@ -60,15 +60,12 @@ const containsText = (
   value: unknown,
   predicate: (text: string) => boolean,
 ): boolean => {
-  const pending: Iterator<unknown>[] = [[value][Symbol.iterator]()];
+  // An explicit value stack avoids allocating an iterator and a generator
+  // per container; visit order does not matter for an existence check.
+  const pending: unknown[] = [value];
   const seen = new WeakSet<object>();
   while (pending.length > 0) {
-    const next = pending.at(-1)!.next();
-    if (next.done === true) {
-      pending.pop();
-      continue;
-    }
-    const current: unknown = next.value;
+    const current = pending.pop();
     if (typeof current === "string") {
       if (predicate(current)) return true;
       continue;
@@ -76,21 +73,20 @@ const containsText = (
     if (typeof current !== "object" || current === null || seen.has(current))
       continue;
     seen.add(current);
-    pending.push(outputValues(current));
+    if (Array.isArray(current)) {
+      for (let index = current.length - 1; index >= 0; index -= 1)
+        pending.push(current[index]);
+    } else {
+      const record = current as Record<string, unknown>;
+      const keys = Object.keys(record);
+      for (let index = keys.length - 1; index >= 0; index -= 1) {
+        pending.push(record[keys[index]!]);
+        pending.push(keys[index]!);
+      }
+    }
   }
   return false;
 };
-
-function* outputValues(value: object): Generator<unknown> {
-  if (Array.isArray(value)) {
-    yield* value;
-    return;
-  }
-  for (const key of Object.keys(value)) {
-    yield key;
-    yield (value as Record<string, unknown>)[key];
-  }
-}
 
 export interface PreparedDelimitedOutput {
   readonly encodedHeaders: readonly string[];

@@ -87,8 +87,14 @@ export const writeCliJsonLines = async (
     if (options.tokenCount) {
       let count = 0;
       for (const record of jsonLinesRecords(plan.value)) {
+        // One serialization per record serves both the capacity admission
+        // and the count; the parts are joined once for the estimator.
+        const parts: string[] = [];
         let characters = 0;
-        for (const part of jsonLineParts(record)) characters += part.length;
+        for (const part of jsonLineParts(record)) {
+          parts.push(part);
+          characters += part.length;
+        }
         if (characters > constants.MAX_STRING_LENGTH) {
           error = projectAnalysisError(
             retainCliPublicationOnError(
@@ -111,7 +117,7 @@ export const writeCliJsonLines = async (
         }
         // Newlines split tokenx segments, so summing complete lines is
         // identical to estimating the emitted stream, with one-line memory.
-        count += estimateTokenCount([...jsonLineParts(record)].join(""));
+        count += estimateTokenCount(parts.join(""));
       }
       if (error !== undefined)
         await writeJsonOutput(

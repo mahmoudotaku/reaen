@@ -576,33 +576,29 @@ export const createCliResultOutput = (
       // require a complete formatted string.
       const tokenValue = document;
       let characters = 0;
-      if (
-        tokenValue !== undefined &&
-        tokenValue !== null &&
-        typeof tokenValue !== "function" &&
-        typeof tokenValue !== "symbol"
-      ) {
-        if (format === "json") {
-          for (const part of jsonOutputParts(
-            tokenValue,
-            format,
-            isTerminalOutput(destination),
-          ))
-            characters += part.length;
+      // One serialization serves both the capacity admission and the count:
+      // the parts are retained only up to the admission check below, which
+      // bounds the joined string to the runtime's maximum. The document is
+      // always a JSON value here (null and missing selections fall back to
+      // `null`/`{}`), so JSON always serializes it.
+      let serializedJsonParts: string[] | undefined;
+      if (format === "json") {
+        serializedJsonParts = [];
+        for (const part of jsonOutputParts(
+          tokenValue,
+          format,
+          isTerminalOutput(destination),
+        )) {
+          serializedJsonParts.push(part);
+          characters += part.length;
         }
       }
       if (characters <= constants.MAX_STRING_LENGTH) {
         let formatted: string;
-        if (format === "json") {
+        if (serializedJsonParts !== undefined) {
           // Reuse the writer's exact representation after its capacity admission.
           // tokenx requires one string; retain only this bounded formatted value.
-          formatted = "";
-          for (const part of jsonOutputParts(
-            tokenValue,
-            format,
-            isTerminalOutput(destination),
-          ))
-            formatted += part;
+          formatted = serializedJsonParts.join("");
         } else formatted = formatCliOutput(tokenValue, format);
         const count = estimateTokenCount(formatted);
         handled = true;
